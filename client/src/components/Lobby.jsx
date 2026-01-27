@@ -30,6 +30,14 @@ const Lobby = () => {
             setPlayers(players);
         });
 
+        socketRef.current.on('game_started', ({ startTime }) => {
+            navigate(`/game/${roomId}`, { state: { quiz: quizData } });
+        });
+
+        socketRef.current.on('error', ({ message }) => {
+            alert(message);
+        });
+
         if (!quizData && roomId) {
             fetchQuiz();
         }
@@ -38,6 +46,14 @@ const Lobby = () => {
             socketRef.current.disconnect();
         };
     }, [roomId]);
+
+    const handleStartGame = () => {
+        if (players.length < 2) {
+            alert("At least 2 players are needed to start the quiz!");
+            return;
+        }
+        socketRef.current.emit('start_quiz', { roomId });
+    };
 
     const fetchQuiz = async () => {
         try {
@@ -190,10 +206,22 @@ const Lobby = () => {
                                 </div>
                             </div>
 
-                            <button className="mt-8 w-full bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-400 hover:to-rose-500 text-white py-5 rounded-2xl shadow-xl shadow-pink-500/20 transition-all hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 text-xl font-black uppercase tracking-tighter">
-                                <Play size={24} fill="currentColor" />
-                                Start Quiz
-                            </button>
+                            {localStorage.getItem('hostedRoom') === (id || roomId) ? (
+                                <button
+                                    onClick={handleStartGame}
+                                    className={`mt-8 w-full py-5 rounded-2xl shadow-xl transition-all transform active:scale-95 flex items-center justify-center gap-3 text-xl font-black uppercase tracking-tighter ${players.length >= 2
+                                        ? "bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-400 hover:to-rose-500 text-white shadow-pink-500/20 hover:scale-[1.01]"
+                                        : "bg-white/5 text-white/20 cursor-not-allowed border border-white/5"
+                                        }`}
+                                >
+                                    <Play size={24} fill={players.length >= 2 ? "currentColor" : "none"} />
+                                    {players.length >= 2 ? "Start Quiz" : "Need 2 Players to Start"}
+                                </button>
+                            ) : (
+                                <div className="mt-8 bg-black/20 p-6 rounded-2xl border border-white/5 text-center animate-pulse">
+                                    <p className="text-white/40 font-bold uppercase tracking-widest text-sm text-center">Waiting for host to start...</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 

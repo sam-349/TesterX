@@ -95,7 +95,8 @@ const CreateQuiz = () => {
 
             if (result.success) {
                 console.log('Quiz Generated:', result.data);
-                navigate(`/lobby/${result.data.id}`, { state: { quiz: result.data, config: formData } });
+                localStorage.setItem('hostedRoom', result.data.roomId);
+                navigate(`/lobby/${result.data.roomId}`, { state: { quiz: result.data, config: formData } });
             } else {
                 alert('Error: ' + result.error);
             }

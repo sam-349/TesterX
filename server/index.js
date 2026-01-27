@@ -168,6 +168,17 @@ io.on('connection', (socket) => {
         console.log(`User ${player.username} joined room: ${roomId}`);
     });
 
+    socket.on('start_quiz', ({ roomId }) => {
+        const playerList = rooms.has(roomId) ? Array.from(rooms.get(roomId)).map(p => JSON.parse(p)) : [];
+        if (playerList.length < 2) {
+            return socket.emit('error', { message: "Minimum 2 players required to start!" });
+        }
+
+        // Broadcast to everyone in the room that the game has started
+        io.to(roomId).emit('game_started', { startTime: Date.now() });
+        console.log(`Quiz started in room: ${roomId}`);
+    });
+
     socket.on('disconnecting', () => {
         for (const roomId of socket.rooms) {
             if (rooms.has(roomId)) {
