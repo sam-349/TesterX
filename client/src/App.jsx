@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './components/Home';
 import CreateQuiz from './components/CreateQuiz';
 import Lobby from './components/Lobby';
+import JoinQuiz from './components/JoinQuiz';
 
 function App() {
   return (
@@ -12,7 +13,7 @@ function App() {
         <Route path="/create" element={<CreateQuiz />} />
         <Route path="/lobby/:roomId" element={<Lobby />} />
         <Route path="/join/:roomId" element={<Lobby />} />
-        <Route path="/join" element={<div className="text-white text-center mt-20 text-2xl">Join Quiz Page (Coming Soon)</div>} />
+        <Route path="/join" element={<JoinQuiz />} />
       </Routes>
     </Router>
   );

@@ -145,8 +145,45 @@ app.put('/api/quiz/:roomId', async (req, res) => {
     }
 });
 
+// Track players in rooms
+const rooms = new Map();
+
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
+
+    socket.on('join_room', ({ roomId, username }) => {
+        socket.join(roomId);
+
+        if (!rooms.has(roomId)) {
+            rooms.set(roomId, new Set());
+        }
+
+        const player = { id: socket.id, username: username || `Guest_${socket.id.substring(0, 4)}` };
+        rooms.get(roomId).add(JSON.stringify(player));
+
+        // Broadcast updated player list to everyone in the room
+        const playerList = Array.from(rooms.get(roomId)).map(p => JSON.parse(p));
+        io.to(roomId).emit('room_data', { players: playerList });
+
+        console.log(`User ${player.username} joined room: ${roomId}`);
+    });
+
+    socket.on('disconnecting', () => {
+        for (const roomId of socket.rooms) {
+            if (rooms.has(roomId)) {
+                const playerList = Array.from(rooms.get(roomId)).map(p => JSON.parse(p));
+                const updatedList = playerList.filter(p => p.id !== socket.id);
+
+                if (updatedList.length === 0) {
+                    rooms.delete(roomId);
+                } else {
+                    rooms.set(roomId, new Set(updatedList.map(p => JSON.stringify(p))));
+                    io.to(roomId).emit('room_data', { players: updatedList });
+                }
+            }
+        }
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });

@@ -1,23 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Layout, Play, Users, Clock, ArrowLeft, CheckCircle2, Copy, Check, Share2, Edit2, Trash2, Plus, Save, X } from 'lucide-react';
+import { Layout, Play, Users, Clock, ArrowLeft, CheckCircle2, Copy, Check, Share2, Edit2, Trash2, Plus, Save, X, User } from 'lucide-react';
+import { io } from 'socket.io-client';
 
 const Lobby = () => {
     const { roomId } = useParams();
     const location = useLocation();
     const navigate = useNavigate();
+    const socketRef = useRef();
 
     const [quizData, setQuizData] = useState(location.state?.quiz || null);
     const [loading, setLoading] = useState(!quizData && roomId);
     const [error, setError] = useState(null);
     const [copied, setCopied] = useState(false);
-    const [isEditing, setIsEditing] = useState(null); // Index of question being edited
+    const [isEditing, setIsEditing] = useState(null);
     const [editBuffer, setEditBuffer] = useState(null);
+    const [players, setPlayers] = useState([]);
 
     useEffect(() => {
+        // Initialize Socket.io
+        socketRef.current = io('http://localhost:3000');
+
+        socketRef.current.on('connect', () => {
+            console.log('Connected to socket server');
+            socketRef.current.emit('join_room', { roomId, username: localStorage.getItem('username') });
+        });
+
+        socketRef.current.on('room_data', ({ players }) => {
+            setPlayers(players);
+        });
+
         if (!quizData && roomId) {
             fetchQuiz();
         }
+
+        return () => {
+            socketRef.current.disconnect();
+        };
     }, [roomId]);
 
     const fetchQuiz = async () => {
@@ -110,14 +129,16 @@ const Lobby = () => {
     if (loading) return (
         <div className="min-h-screen bg-indigo-950 flex flex-col items-center justify-center gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.5)]"></div>
-            <p className="text-white/60 animate-pulse">Loading Room...</p>
+            <p className="text-white/60 animate-pulse">Entering Room...</p>
         </div>
     );
 
     if (error || !quizData) return (
         <div className="min-h-screen bg-indigo-950 flex flex-col items-center justify-center p-4 text-center">
-            <h2 className="text-2xl font-bold text-white mb-2">Room Not Found</h2>
-            <button onClick={() => navigate('/create')} className="mt-4 px-6 py-2 bg-pink-500 text-white rounded-xl">Create New</button>
+            <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[2rem] border border-white/10 shadow-2xl max-w-md">
+                <h2 className="text-2xl font-bold text-white mb-2">Room Not Found</h2>
+                <button onClick={() => navigate('/create')} className="mt-6 px-8 py-3 bg-pink-500 text-white rounded-xl font-bold">Create New</button>
+            </div>
         </div>
     );
 
@@ -125,7 +146,7 @@ const Lobby = () => {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-black p-4 md:p-8">
-            <div className="max-w-4xl mx-auto space-y-8 pb-10">
+            <div className="max-w-4xl mx-auto space-y-8 pb-10 font-sans">
 
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -134,50 +155,88 @@ const Lobby = () => {
                         <span className="font-medium">Back to Create</span>
                     </button>
 
-                    <div className="bg-white/10 backdrop-blur-xl p-1 rounded-2xl border border-white/20 flex items-center shadow-xl">
-                        <div className="px-6 py-3 border-r border-white/10">
-                            <p className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold mb-1">Room Code</p>
-                            <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-400 tracking-wider">
-                                {id || roomId}
-                            </h2>
+                    <div className="flex items-center gap-4">
+                        <div className="bg-white/10 backdrop-blur-xl p-1 rounded-2xl border border-white/20 flex items-center shadow-xl">
+                            <div className="px-6 py-3 border-r border-white/10">
+                                <p className="text-white/40 text-[10px] uppercase tracking-[0.2em] font-bold mb-1">Room Code</p>
+                                <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-400 tracking-wider">
+                                    {id || roomId}
+                                </h2>
+                            </div>
+                            <button onClick={copyInviteLink} className="px-6 hover:bg-white/5 transition flex items-center gap-2 group relative h-full min-h-[70px]">
+                                {copied ? <Check className="text-emerald-400" size={24} /> : <Copy className="text-white/40 group-hover:text-white transition" size={24} />}
+                            </button>
                         </div>
-                        <button onClick={copyInviteLink} className="px-6 hover:bg-white/5 transition flex items-center gap-2 group relative h-full">
-                            {copied ? <Check className="text-emerald-400" size={24} /> : <Copy className="text-white/40 group-hover:text-white transition" size={24} />}
-                        </button>
                     </div>
                 </div>
 
-                {/* Quiz Summary Card */}
-                <div className="bg-white/10 backdrop-blur-2xl rounded-[3rem] p-10 border border-white/20 shadow-2xl relative overflow-hidden">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-10 relative z-10">
-                        <div className="space-y-6">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-pink-500/20 rounded-xl"><Users className="text-pink-400" size={20} /></div>
-                                <span className="text-pink-400 font-bold tracking-widest uppercase text-xs">Waiting in Lobby</span>
+                {/* Main Content Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                    {/* Left Column: Summary & Players */}
+                    <div className="lg:col-span-2 space-y-8">
+                        {/* Quiz Summary Card */}
+                        <div className="bg-white/10 backdrop-blur-2xl rounded-[3rem] p-10 border border-white/20 shadow-2xl relative overflow-hidden h-full flex flex-col justify-between">
+                            <div className="space-y-6 relative z-10">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-indigo-500/20 rounded-xl"><Users className="text-indigo-400" size={18} /></div>
+                                    <span className="text-indigo-400 font-bold tracking-widest uppercase text-xs">Multiplayer Lobby</span>
+                                </div>
+                                <h1 className="text-4xl font-black text-white leading-tight">Ready to challenge <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-400">your friends?</span></h1>
+                                <div className="flex flex-wrap gap-4">
+                                    <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/5"><Layout size={16} className="text-white/40" font-bold /><span className="text-white font-bold">{questions.length} Qs</span></div>
+                                    <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/5"><Clock size={16} className="text-white/40" /><span className="text-white font-bold">{config.timeLimit}s</span></div>
+                                    <div className="flex items-center gap-3 bg-white/5 px-4 py-2 rounded-xl border border-white/5"><Share2 size={16} className="text-white/40" /><span className="text-white font-bold capitalize">{config.mode}</span></div>
+                                </div>
                             </div>
-                            <h1 className="text-5xl font-black text-white leading-tight">Ready to unleash <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">the knowledge?</span></h1>
-                            <div className="flex flex-wrap gap-4">
-                                <div className="flex items-center gap-3 bg-white/5 px-5 py-3 rounded-2xl border border-white/10"><Layout size={20} className="text-indigo-400" /><p className="text-white font-bold text-lg">{questions.length}</p></div>
-                                <div className="flex items-center gap-3 bg-white/5 px-5 py-3 rounded-2xl border border-white/10"><Clock size={20} className="text-pink-400" /><p className="text-white font-bold text-lg">{config.timeLimit}s</p></div>
-                                <div className="flex items-center gap-3 bg-white/5 px-5 py-3 rounded-2xl border border-white/10"><Share2 size={20} className="text-emerald-400" /><p className="text-white font-bold text-lg capitalize">{config.mode}</p></div>
+
+                            <button className="mt-8 w-full bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-400 hover:to-rose-500 text-white py-5 rounded-2xl shadow-xl shadow-pink-500/20 transition-all hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 text-xl font-black uppercase tracking-tighter">
+                                <Play size={24} fill="currentColor" />
+                                Start Quiz
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Right Column: Player List */}
+                    <div className="space-y-6">
+                        <div className="bg-white/5 backdrop-blur-xl rounded-[2.5rem] p-8 border border-white/10 shadow-2xl h-full border-t-indigo-500/30">
+                            <div className="flex items-center justify-between mb-8">
+                                <h3 className="text-xl font-bold text-white">Players</h3>
+                                <span className="bg-indigo-500 text-white text-[10px] font-black px-2 py-1 rounded-lg uppercase">{players.length} online</span>
+                            </div>
+
+                            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                {players.map((player) => (
+                                    <div key={player.id} className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/5 group hover:bg-white/10 transition">
+                                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center text-white font-bold">
+                                            {player.username.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-white font-bold truncate">{player.username}</p>
+                                            <p className="text-white/20 text-[10px] uppercase font-bold tracking-widest">Connected</p>
+                                        </div>
+                                    </div>
+                                ))}
+                                {players.length === 0 && (
+                                    <div className="text-center py-10">
+                                        <User className="text-white/10 mx-auto mb-3" size={48} />
+                                        <p className="text-white/20 text-sm font-medium">Waiting for joiners...</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
-                        <button className="lg:h-64 lg:w-64 w-full bg-gradient-to-br from-pink-500 to-rose-600 hover:from-pink-400 hover:to-rose-500 text-white p-8 rounded-[2.5rem] shadow-[0_20px_60px_rgba(244,63,94,0.4)] transition hover:scale-[1.02] flex flex-col items-center justify-center gap-4">
-                            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center"><Play size={40} className="text-white ml-2" fill="currentColor" /></div>
-                            <span className="text-2xl font-black uppercase">Start Game</span>
-                        </button>
                     </div>
                 </div>
 
                 {/* Questions Preview Section */}
-                <div className="space-y-6">
+                <div className="space-y-6 pt-4">
                     <div className="flex items-center justify-between px-4">
                         <div className="flex items-center gap-3">
-                            <div className="h-8 w-1.5 bg-indigo-500 rounded-full"></div>
-                            <h2 className="text-2xl font-bold text-white/90">Quiz Questions</h2>
+                            <div className="h-8 w-1.5 bg-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+                            <h2 className="text-2xl font-bold text-white/90">Curated Quiz List</h2>
                         </div>
-                        <button onClick={addQuestion} className="flex items-center gap-2 px-4 py-2 bg-indigo-500/20 text-indigo-300 rounded-xl hover:bg-indigo-500/30 transition border border-indigo-500/30">
-                            <Plus size={18} /> Add Question
+                        <button onClick={addQuestion} className="flex items-center gap-2 px-6 py-3 bg-white/5 text-white/70 rounded-2xl hover:bg-white/10 transition border border-white/10 hover:text-white">
+                            <Plus size={18} /> <span className="text-sm font-bold">Add Question</span>
                         </button>
                     </div>
 
@@ -185,53 +244,65 @@ const Lobby = () => {
                         {questions.map((q, index) => (
                             <div key={index} className="bg-white/5 backdrop-blur-md rounded-[2.5rem] p-8 border border-white/10 hover:border-indigo-500/50 transition-all duration-500 group relative">
                                 {isEditing === index ? (
-                                    <div className="space-y-6 relative z-10 w-full">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <span className="text-indigo-400 font-bold">Editing Question {index + 1}</span>
+                                    <div className="space-y-6 relative z-10 w-full animate-in fade-in zoom-in duration-300">
+                                        <div className="flex justify-between items-center bg-black/40 -m-8 p-6 mb-8 rounded-t-[2.5rem] border-b border-white/10">
+                                            <span className="text-indigo-400 font-black uppercase text-xs tracking-[0.2em]">Editing Question {index + 1}</span>
                                             <div className="flex gap-2">
-                                                <button onClick={cancelEdit} className="p-2 bg-white/5 rounded-lg text-white/50 hover:text-white"><X size={20} /></button>
-                                                <button onClick={() => saveEdit(index)} className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400 hover:bg-emerald-500/30"><Save size={20} /></button>
+                                                <button onClick={cancelEdit} className="p-2.5 bg-white/5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition"><X size={20} /></button>
+                                                <button onClick={() => saveEdit(index)} className="px-5 py-2.5 bg-emerald-500/20 rounded-xl text-emerald-400 hover:bg-emerald-500/30 transition flex items-center gap-2 font-bold"><Save size={18} /> SAVE</button>
                                             </div>
                                         </div>
-                                        <input
-                                            value={editBuffer.question}
-                                            onChange={(e) => handleEditChange('question', e.target.value)}
-                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        />
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {editBuffer.options.map((opt, optIdx) => (
-                                                <div key={optIdx} className="flex items-center gap-2">
-                                                    <input
-                                                        type="radio"
-                                                        checked={editBuffer.correctAnswer === opt}
-                                                        onChange={() => handleEditChange('correctAnswer', opt)}
-                                                        className="accent-emerald-500 h-5 w-5"
-                                                    />
-                                                    <input
-                                                        value={opt}
-                                                        onChange={(e) => handleOptionChange(optIdx, e.target.value)}
-                                                        className="flex-1 bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-white text-sm"
-                                                    />
-                                                </div>
-                                            ))}
+                                        <div className="space-y-3 pt-4">
+                                            <p className="text-white/30 text-[10px] uppercase font-bold tracking-widest ml-4">Question Text</p>
+                                            <textarea
+                                                value={editBuffer.question}
+                                                onChange={(e) => handleEditChange('question', e.target.value)}
+                                                className="w-full bg-black/60 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[100px] resize-none"
+                                            />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <p className="text-white/30 text-[10px] uppercase font-bold tracking-widest ml-4">Options (Select radio for correct answer)</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {editBuffer.options.map((opt, optIdx) => (
+                                                    <div key={optIdx} className="flex items-center gap-3 bg-black/40 p-3 rounded-2xl border border-white/5">
+                                                        <input
+                                                            type="radio"
+                                                            name={`correct-${index}`}
+                                                            checked={editBuffer.correctAnswer === opt}
+                                                            onChange={() => handleEditChange('correctAnswer', opt)}
+                                                            className="accent-emerald-500 h-6 w-6 cursor-pointer"
+                                                        />
+                                                        <input
+                                                            value={opt}
+                                                            onChange={(e) => handleOptionChange(optIdx, e.target.value)}
+                                                            className="flex-1 bg-transparent border-none text-white text-base focus:ring-0 placeholder-white/10"
+                                                            placeholder={`Option ${optIdx + 1}`}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="flex gap-8 relative z-10">
-                                        <div className="flex-shrink-0 w-14 h-14 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-2xl flex items-center justify-center text-indigo-300 font-black text-2xl border border-white/5">{index + 1}</div>
+                                        <div className="flex-shrink-0 w-16 h-16 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-2xl flex items-center justify-center text-indigo-300 font-black text-3xl border border-white/5 shadow-inner">
+                                            {index + 1}
+                                        </div>
                                         <div className="flex-1">
-                                            <div className="flex justify-between gap-4 mb-6">
+                                            <div className="flex justify-between gap-6 mb-8 items-start">
                                                 <p className="text-white font-bold text-2xl leading-relaxed">{q.question}</p>
-                                                <div className="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => startEdit(index)} className="p-2 bg-white/5 rounded-lg text-white/40 hover:text-white hover:bg-white/10"><Edit2 size={16} /></button>
-                                                    <button onClick={() => deleteQuestion(index)} className="p-2 bg-white/5 rounded-lg text-rose-500/40 hover:text-rose-500 hover:bg-rose-500/10"><Trash2 size={16} /></button>
+                                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                                                    <button onClick={() => startEdit(index)} className="p-3 bg-white/5 rounded-2xl text-white/40 hover:text-white hover:bg-white/10 transition border border-white/5"><Edit2 size={18} /></button>
+                                                    <button onClick={() => deleteQuestion(index)} className="p-3 bg-rose-500/10 rounded-2xl text-rose-500/40 hover:text-rose-500 hover:bg-rose-500/20 transition border border-rose-500/10"><Trash2 size={18} /></button>
                                                 </div>
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 {q.options.map((opt, optIndex) => (
-                                                    <div key={optIndex} className={`p-5 rounded-2xl border-2 transition-all duration-300 flex items-center justify-between ${opt === q.correctAnswer ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'bg-black/40 border-white/5 text-white/40'}`}>
-                                                        <span className="text-base font-semibold">{opt}</span>
-                                                        {opt === q.correctAnswer && <CheckCircle2 size={18} className="text-emerald-400" />}
+                                                    <div key={optIndex} className={`p-6 rounded-[1.5rem] border-2 transition-all duration-300 flex items-center justify-between ${opt === q.correctAnswer ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.1)]' : 'bg-black/40 border-white/5 text-white/30'}`}>
+                                                        <span className="text-base font-bold tracking-tight">{opt}</span>
+                                                        {opt === q.correctAnswer && (
+                                                            <div className="bg-emerald-500/20 p-1 rounded-full"><CheckCircle2 size={18} className="text-emerald-400" /></div>
+                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
@@ -243,9 +314,13 @@ const Lobby = () => {
                     </div>
                 </div>
             </div>
-            <footer className="mt-10 py-10 border-t border-white/5 text-center">
-                <p className="text-white/20 text-sm font-medium tracking-[0.3em] uppercase">QuizX Premium Experience</p>
-            </footer>
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+            `}} />
         </div>
     );
 };
