@@ -1,0 +1,19 @@
+@import "tailwindcss";
+
+@theme {
+  --color-slate-900: #0f172a;
+  --color-indigo-900: #312e81;
+  --color-purple-900: #581c87;
+  --color-pink-400: #f472b6;
+  --color-violet-400: #a78bfa;
+  --color-pink-500: #ec4899;
+  --color-rose-500: #f43f5e;
+  --color-pink-600: #db2777;
+  --color-rose-600: #e11d48;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-900 text-white font-sans;
+  }
+}
