@@ -4,8 +4,28 @@ require('dotenv').config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "YOUR_API_KEY_HERE");
 
 const generateQuiz = async (text, config) => {
-  // Using gemini-flash-latest as it has verified quota for this key
-  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+  // Using gemini-1.5-flash for stability and cost-efficiency
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash-lite",
+    safetySettings: [
+      {
+        category: "HARM_CATEGORY_HARASSMENT",
+        threshold: "BLOCK_ONLY_HIGH",
+      },
+      {
+        category: "HARM_CATEGORY_HATE_SPEECH",
+        threshold: "BLOCK_ONLY_HIGH",
+      },
+      {
+        category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        threshold: "BLOCK_ONLY_HIGH",
+      },
+      {
+        category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+        threshold: "BLOCK_ONLY_HIGH",
+      },
+    ]
+  });
 
   const prompt = `
     Create a quiz based on the following text/topic: "${text}".

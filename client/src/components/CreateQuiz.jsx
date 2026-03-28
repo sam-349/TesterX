@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Sparkles, Users, Layers, Hash, Zap, Loader2, FileText, X, Clock } from 'lucide-react';
+import { ArrowLeft, Upload, Sparkles, Users, Layers, Hash, Zap, Loader2, FileText, X, Clock, Check, Eye, EyeOff } from 'lucide-react';
 
 const CreateQuiz = () => {
     const navigate = useNavigate();
@@ -16,6 +16,7 @@ const CreateQuiz = () => {
         aiPrompt: '',
         maxPlayers: 8,
         timeLimit: 15,
+        isParticipating: false, // host participation flag
     });
 
     const handleInputChange = (e) => {
@@ -96,7 +97,14 @@ const CreateQuiz = () => {
             if (result.success) {
                 console.log('Quiz Generated:', result.data);
                 localStorage.setItem('hostedRoom', result.data.roomId);
-                navigate(`/lobby/${result.data.roomId}`, { state: { quiz: result.data, config: formData } });
+                // Pass isParticipating so Lobby knows the host's intent from the start
+                navigate(`/lobby/${result.data.roomId}`, {
+                    state: {
+                        quiz: result.data,
+                        config: formData,
+                        isParticipating: formData.isParticipating
+                    }
+                });
             } else {
                 alert('Error: ' + result.error);
             }
@@ -344,6 +352,41 @@ const CreateQuiz = () => {
                                     )}
                                 </div>
                             )}
+                        </div>
+                    </div>
+
+                    {/* Participation Toggle */}
+                    <div
+                        onClick={() => setFormData(prev => ({ ...prev, isParticipating: !prev.isParticipating }))}
+                        className={`flex items-center gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all duration-300 ${
+                            formData.isParticipating
+                                ? 'bg-emerald-500/10 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
+                                : 'bg-white/5 border-white/10 hover:border-white/20'
+                        }`}
+                    >
+                        {/* Custom Checkbox */}
+                        <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                            formData.isParticipating
+                                ? 'bg-emerald-500 border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]'
+                                : 'border-white/20 bg-transparent'
+                        }`}>
+                            {formData.isParticipating && <Check size={14} className="text-white" strokeWidth={3} />}
+                        </div>
+
+                        <div className="flex-1">
+                            <p className={`font-bold text-sm ${formData.isParticipating ? 'text-emerald-400' : 'text-white/60'}`}>
+                                I'm also playing this quiz
+                            </p>
+                            <p className="text-white/30 text-xs mt-0.5">
+                                {formData.isParticipating
+                                    ? 'Questions will be hidden in Lobby — you\'ll play along with participants'
+                                    : 'You will see & edit questions in Lobby as the host'}
+                            </p>
+                        </div>
+
+                        {/* Visual indicator */}
+                        <div className={`flex-shrink-0 transition-all duration-300 ${formData.isParticipating ? 'text-emerald-400' : 'text-white/20'}`}>
+                            {formData.isParticipating ? <EyeOff size={20} /> : <Eye size={20} />}
                         </div>
                     </div>
 

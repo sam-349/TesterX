@@ -151,14 +151,18 @@ const rooms = new Map();
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
-    socket.on('join_room', ({ roomId, username }) => {
+    socket.on('join_room', ({ roomId, username, avatar }) => {
         socket.join(roomId);
 
         if (!rooms.has(roomId)) {
             rooms.set(roomId, new Set());
         }
 
-        const player = { id: socket.id, username: username || `Guest_${socket.id.substring(0, 4)}` };
+        const player = {
+            id: socket.id,
+            username: username || `Guest_${socket.id.substring(0, 4)}`,
+            avatar: avatar || '🎮'
+        };
         rooms.get(roomId).add(JSON.stringify(player));
 
         // Broadcast updated player list to everyone in the room
